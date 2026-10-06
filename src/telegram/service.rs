@@ -3,10 +3,10 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
 use tdlib_rs::enums::{
-    AuthorizationState, ConnectionState, InputMessageContent, MessageContent, Update,
+    AuthorizationState, ConnectionState, InputMessageContent, MessageContent, OptionValue, Update,
 };
 use tdlib_rs::functions;
-use tdlib_rs::types::{FormattedText, InputMessageText};
+use tdlib_rs::types::{FormattedText, InputMessageText, OptionValueBoolean};
 
 use crate::config::AppConfig;
 use crate::core::events::{
@@ -62,6 +62,13 @@ impl TelegramService {
 
             // Ping TDLib with an initial query so it begins dispatching updates to this client
             let _ = functions::get_option("version".to_string(), client_id).await;
+
+            // Prefer IPv6 connection if available
+            let _ = functions::set_option(
+                "prefer_ipv6".to_string(),
+                Some(OptionValue::Boolean(OptionValueBoolean { value: true })),
+                client_id,
+            ).await;
 
             loop {
                 tokio::select! {
