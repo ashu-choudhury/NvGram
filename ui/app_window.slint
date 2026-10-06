@@ -1,42 +1,64 @@
-import { Button, VerticalBox, HorizontalBox, LineEdit, ListView } from "std-widgets.slint";
+import { AppTheme } from "styles/theme.slint";
+import { AuthScreen } from "screens/auth_screen.slint";
+import { MainScreen, ChatData, MessageData } from "screens/main_screen.slint";
+
+export { ChatData, MessageData }
 
 export component AppWindow inherits Window {
     title: "NvGram - Telegram Desktop";
-    min-width: 600px;
-    min-height: 400px;
+    min-width: 900px;
+    min-height: 600px;
+    background: AppTheme.background;
     default-font-size: 14px;
 
-    in-out property <string> status_text: "Welcome to NvGram! Connecting...";
-    callback connect_clicked();
+    // View state
+    in-out property <bool> is_authenticated: false;
 
-    VerticalBox {
-        padding: 16px;
-        spacing: 12px;
+    // Auth screen state
+    in-out property <string> auth_stage: "phone";
+    in-out property <string> auth_prompt: "Enter your phone number in international format (+1234567890).";
+    in-out property <string> auth_error: "";
+    in-out property <bool> auth_busy: false;
 
-        Text {
-            text: "NvGram";
-            font-size: 20px;
-            font-weight: 700;
-            accessible-role: text;
-        }
+    // Main screen state
+    in-out property <string> connection_status: "Connecting...";
+    in-out property <string> connection_state_type: "connecting";
+    in-out property <string> current_user_name: "Connecting...";
+    in-out property <[ChatData]> chats: [];
+    in-out property <[MessageData]> active_messages: [];
+    in-out property <string> selected_chat_id: "";
+    in-out property <string> selected_chat_title: "Select a chat";
 
-        Text {
-            text: root.status_text;
-            accessible-role: text;
-            wrap: word-wrap;
-        }
+    // Callbacks to Rust
+    callback submit_phone(string);
+    callback submit_code(string);
+    callback submit_password(string);
+    callback chat_selected(string);
+    callback send_message(string, string);
+    callback logout_clicked();
 
-        HorizontalBox {
-            spacing: 8px;
+    if (!root.is_authenticated) : AuthScreen {
+        auth_stage: root.auth_stage;
+        prompt_message: root.auth_prompt;
+        error_message: root.auth_error;
+        is_busy: root.auth_busy;
 
-            Button {
-                text: "Connect / Login";
-                accessible-role: button;
-                accessible-description: "Initiate login with Telegram";
-                clicked => {
-                    root.connect_clicked();
-                }
-            }
-        }
+        submit_phone(phone) => { root.submit_phone(phone); }
+        submit_code(code) => { root.submit_code(code); }
+        submit_password(pass) => { root.submit_password(pass); }
+    }
+
+    if (root.is_authenticated) : MainScreen {
+        connection_status: root.connection_status;
+        connection_state_type: root.connection_state_type;
+        current_user_name: root.current_user_name;
+        chats: root.chats;
+        active_messages: root.active_messages;
+        selected_chat_id: root.selected_chat_id;
+        selected_chat_title: root.selected_chat_title;
+
+        chat_selected(id) => { root.chat_selected(id); }
+        send_message(id, text) => { root.send_message(id, text); }
+        logout_clicked => { root.logout_clicked(); }
     }
 }

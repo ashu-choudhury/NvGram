@@ -1,0 +1,57 @@
+import { AppTheme } from "../styles/theme.slint";
+
+export component AccessibleButton inherits Rectangle {
+    in-out property <string> text;
+    in property <string> accessible_hint: "";
+    in property <bool> primary: true;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    min-height: 38px;
+    border-radius: AppTheme.radius_md;
+    border-width: focus_scope.has-focus ? 2px : 1px;
+    border-color: focus_scope.has-focus ? AppTheme.focus_ring : (root.primary ? AppTheme.primary : AppTheme.border);
+    background: !root.enabled ? AppTheme.surface_variant : 
+                (touch_area.pressed ? (root.primary ? AppTheme.primary_pressed : AppTheme.surface_variant) :
+                (touch_area.has-hover ? (root.primary ? AppTheme.primary_hover : AppTheme.surface_variant) :
+                (root.primary ? AppTheme.primary : AppTheme.surface)));
+
+    // Accessibility attributes for Screen Readers (NVDA / JAWS / Narrator)
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-description: root.accessible_hint != "" ? root.accessible_hint : root.text;
+
+    focus_scope := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+
+        touch_area := TouchArea {
+            enabled: root.enabled;
+            clicked => {
+                focus_scope.focus();
+                root.clicked();
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: AppTheme.space_lg;
+        padding-right: AppTheme.space_lg;
+        alignment: center;
+
+        Text {
+            text: root.text;
+            color: !root.enabled ? AppTheme.text_secondary : AppTheme.text_primary;
+            font-size: AppTheme.font_size_base;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+}

@@ -1,0 +1,47 @@
+import { AppTheme } from "../styles/theme.slint";
+import { LineEdit } from "std-widgets.slint";
+
+export component AccessibleInput inherits VerticalLayout {
+    in property <string> label: "";
+    in property <string> accessible_hint: "";
+    in-out property <string> text <=> input.text;
+    in property <string> placeholder <=> input.placeholder-text;
+    in property <InputType> input_type <=> input.input-type;
+    in property <string> error_text: "";
+    in property <bool> enabled: true;
+
+    callback edited(string);
+    callback accepted(string);
+
+    spacing: AppTheme.space_xs;
+
+    if (root.label != "") : Text {
+        text: root.label;
+        color: AppTheme.text_secondary;
+        font-size: AppTheme.font_size_sm;
+        font-weight: 500;
+    }
+
+    input := LineEdit {
+        enabled: root.enabled;
+        font-size: AppTheme.font_size_base;
+        accessible-role: text-input;
+        accessible-label: root.label;
+        accessible-description: root.accessible_hint != "" ? root.accessible_hint : root.label;
+        accessible-value: root.text;
+
+        edited(text) => {
+            root.edited(text);
+        }
+        accepted(text) => {
+            root.accepted(text);
+        }
+    }
+
+    if (root.error_text != "") : Text {
+        text: root.error_text;
+        color: AppTheme.error;
+        font-size: AppTheme.font_size_sm;
+        accessible-label: "Error: " + root.error_text;
+    }
+}

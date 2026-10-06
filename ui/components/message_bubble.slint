@@ -1,0 +1,54 @@
+import { AppTheme } from "../styles/theme.slint";
+
+export component MessageBubble inherits HorizontalLayout {
+    in property <bool> is_outgoing: false;
+    in property <string> sender_name: "";
+    in property <string> message_text: "";
+    in property <string> time_text: "";
+
+    alignment: root.is_outgoing ? end : start;
+    padding-top: AppTheme.space_xs;
+    padding-bottom: AppTheme.space_xs;
+
+    accessible-role: list-item;
+    accessible-label: (root.is_outgoing ? "You: " : (root.sender_name != "" ? root.sender_name + ": " : "Incoming message: ")) + root.message_text + (root.time_text != "" ? (", " + root.time_text) : "");
+
+    bubble := Rectangle {
+        background: root.is_outgoing ? AppTheme.bubble_out : AppTheme.bubble_in;
+        border-radius: AppTheme.radius_lg;
+        border-width: 1px;
+        border-color: AppTheme.border;
+        max-width: 500px;
+
+        VerticalLayout {
+            padding-left: AppTheme.space_md;
+            padding-right: AppTheme.space_md;
+            padding-top: AppTheme.space_sm;
+            padding-bottom: AppTheme.space_sm;
+            spacing: 2px;
+
+            if (!root.is_outgoing && root.sender_name != "") : Text {
+                text: root.sender_name;
+                color: AppTheme.primary;
+                font-size: AppTheme.font_size_sm;
+                font-weight: 600;
+            }
+
+            Text {
+                text: root.message_text;
+                color: AppTheme.text_primary;
+                font-size: AppTheme.font_size_base;
+                wrap: word-wrap;
+            }
+
+            if (root.time_text != "") : HorizontalLayout {
+                alignment: end;
+                Text {
+                    text: root.time_text;
+                    color: AppTheme.text_secondary;
+                    font-size: AppTheme.font_size_sm;
+                }
+            }
+        }
+    }
+}

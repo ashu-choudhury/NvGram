@@ -1,0 +1,40 @@
+import { AppTheme } from "../styles/theme.slint";
+
+export component StatusBadge inherits Rectangle {
+    in property <string> status_text: "Disconnected";
+    in property <string> state_type: "offline"; // online, connecting, updating, offline
+
+    min-height: 24px;
+    border-radius: AppTheme.radius_sm;
+    background: root.state_type == "online" ? #153724 :
+                root.state_type == "connecting" ? #3A2B10 :
+                root.state_type == "updating" ? #102B3A : #3A1010;
+    border-width: 1px;
+    border-color: root.state_type == "online" ? AppTheme.success :
+                  root.state_type == "connecting" ? #FFB300 :
+                  root.state_type == "updating" ? AppTheme.primary : AppTheme.error;
+
+    HorizontalLayout {
+        padding-left: AppTheme.space_sm;
+        padding-right: AppTheme.space_sm;
+        alignment: center;
+        spacing: AppTheme.space_xs;
+
+        Rectangle {
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: root.state_type == "online" ? AppTheme.success :
+                        root.state_type == "connecting" ? #FFB300 :
+                        root.state_type == "updating" ? AppTheme.primary : AppTheme.error;
+            y: (parent.height - self.height) / 2;
+        }
+
+        Text {
+            text: root.status_text;
+            color: AppTheme.text_primary;
+            font-size: AppTheme.font_size_sm;
+            vertical-alignment: center;
+        }
+    }
+}

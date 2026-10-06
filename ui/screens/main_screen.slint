@@ -1,0 +1,238 @@
+import { AppTheme } from "../styles/theme.slint";
+import { AccessibleButton } from "../components/accessible_button.slint";
+import { AccessibleInput } from "../components/accessible_input.slint";
+import { StatusBadge } from "../components/status_badge.slint";
+import { ChatItem } from "../components/chat_item.slint";
+import { MessageBubble } from "../components/message_bubble.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export struct ChatData {
+    chat_id: string,
+    title: string,
+    last_message: string,
+    time_text: string,
+    unread_count: int,
+}
+
+export struct MessageData {
+    message_id: string,
+    sender_name: string,
+    text: string,
+    time_text: string,
+    is_outgoing: bool,
+}
+
+export component MainScreen inherits Rectangle {
+    in property <string> connection_status: "Ready";
+    in property <string> connection_state_type: "online";
+    in property <string> current_user_name: "Logged In";
+    in property <[ChatData]> chats: [];
+    in property <[MessageData]> active_messages: [];
+    in property <string> selected_chat_id: "";
+    in property <string> selected_chat_title: "Select a chat";
+    in-out property <string> draft_message: "";
+
+    callback chat_selected(string);
+    callback send_message(string, string); // chat_id, text
+    callback logout_clicked();
+
+    background: AppTheme.background;
+
+    VerticalLayout {
+        // Top Navigation / Header Bar
+        Rectangle {
+            height: 52px;
+            background: AppTheme.surface;
+            border-width: 1px;
+            border-color: AppTheme.border;
+
+            HorizontalLayout {
+                padding-left: AppTheme.space_lg;
+                padding-right: AppTheme.space_lg;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: AppTheme.space_md;
+                    alignment: start;
+
+                    Text {
+                        text: "NvGram";
+                        color: AppTheme.primary;
+                        font-size: AppTheme.font_size_xl;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+
+                    StatusBadge {
+                        status_text: root.connection_status;
+                        state_type: root.connection_state_type;
+                        y: (parent.height - self.height) / 2;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: AppTheme.space_md;
+                    alignment: end;
+
+                    Text {
+                        text: root.current_user_name;
+                        color: AppTheme.text_primary;
+                        font-size: AppTheme.font_size_base;
+                        vertical-alignment: center;
+                    }
+
+                    AccessibleButton {
+                        text: "Log Out";
+                        accessible_hint: "Sign out of your Telegram account";
+                        primary: false;
+                        clicked => {
+                            root.logout_clicked();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Two-column split layout
+        HorizontalLayout {
+            // Left Column: Chat List
+            Rectangle {
+                width: 320px;
+                background: AppTheme.surface;
+                border-width: 1px;
+                border-color: AppTheme.border;
+
+                VerticalLayout {
+                    padding: AppTheme.space_sm;
+                    spacing: AppTheme.space_sm;
+
+                    Text {
+                        text: "Chats (" + root.chats.length + ")";
+                        color: AppTheme.text_secondary;
+                        font-size: AppTheme.font_size_sm;
+                        font-weight: 600;
+                    }
+
+                    ScrollView {
+                        accessible-role: list;
+                        accessible-label: "Telegram chats list";
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            for chat in root.chats : ChatItem {
+                                chat_title: chat.title;
+                                last_message: chat.last_message;
+                                time_text: chat.time_text;
+                                unread_count: chat.unread_count;
+                                is_selected: chat.chat_id == root.selected_chat_id;
+                                selected => {
+                                    root.chat_selected(chat.chat_id);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Right Column: Active Conversation & Composer
+            Rectangle {
+                background: AppTheme.background;
+                horizontal-stretch: 1;
+
+                VerticalLayout {
+                    // Chat header
+                    Rectangle {
+                        height: 52px;
+                        background: AppTheme.surface;
+                        border-width: 1px;
+                        border-color: AppTheme.border;
+
+                        HorizontalLayout {
+                            padding-left: AppTheme.space_lg;
+                            padding-right: AppTheme.space_lg;
+                            alignment: space-between;
+
+                            Text {
+                                text: root.selected_chat_title;
+                                color: AppTheme.text_primary;
+                                font-size: AppTheme.font_size_lg;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Messages View
+                    ScrollView {
+                        horizontal-stretch: 1;
+                        accessible-role: list;
+                        accessible-label: "Messages in " + root.selected_chat_title;
+
+                        VerticalLayout {
+                            padding: AppTheme.space_lg;
+                            spacing: AppTheme.space_sm;
+
+                            if (root.active_messages.length == 0) : VerticalLayout {
+                                alignment: center;
+                                padding: AppTheme.space_xl;
+                                Text {
+                                    text: root.selected_chat_id != "" ? "No messages in this chat yet." : "Select a chat from the sidebar to start reading messages.";
+                                    color: AppTheme.text_secondary;
+                                    font-size: AppTheme.font_size_base;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            for msg in root.active_messages : MessageBubble {
+                                is_outgoing: msg.is_outgoing;
+                                sender_name: msg.sender_name;
+                                message_text: msg.text;
+                                time_text: msg.time_text;
+                            }
+                        }
+                    }
+
+                    // Message Composer
+                    if (root.selected_chat_id != "") : Rectangle {
+                        min-height: 60px;
+                        background: AppTheme.surface;
+                        border-width: 1px;
+                        border-color: AppTheme.border;
+
+                        HorizontalLayout {
+                            padding: AppTheme.space_md;
+                            spacing: AppTheme.space_md;
+                            alignment: center;
+
+                            composer_input := AccessibleInput {
+                                placeholder: "Write a message... (Press Enter to send)";
+                                text <=> root.draft_message;
+                                accessible_hint: "Message input box. Press Enter or click Send to submit";
+                                horizontal-stretch: 1;
+                                accepted(msg) => {
+                                    if (msg != "") {
+                                        root.send_message(root.selected_chat_id, msg);
+                                        root.draft_message = "";
+                                    }
+                                }
+                            }
+
+                            AccessibleButton {
+                                text: "Send";
+                                accessible_hint: "Send message to " + root.selected_chat_title;
+                                primary: true;
+                                enabled: root.draft_message != "";
+                                clicked => {
+                                    if (root.draft_message != "") {
+                                        root.send_message(root.selected_chat_id, root.draft_message);
+                                        root.draft_message = "";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

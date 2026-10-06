@@ -1,0 +1,111 @@
+import { AppTheme } from "../styles/theme.slint";
+
+export component ChatItem inherits Rectangle {
+    in property <string> chat_title: "Telegram User";
+    in property <string> last_message: "";
+    in property <string> time_text: "";
+    in property <int> unread_count: 0;
+    in property <bool> is_selected: false;
+
+    callback selected();
+
+    height: 64px;
+    border-radius: AppTheme.radius_md;
+    background: root.is_selected ? AppTheme.surface_variant :
+                (touch_area.has-hover ? #1E2734 : Colors.transparent);
+    border-width: focus_scope.has-focus ? 2px : 0px;
+    border-color: AppTheme.focus_ring;
+
+    accessible-role: list-item;
+    accessible-label: root.chat_title + (root.unread_count > 0 ? (", " + root.unread_count + " unread messages") : "") + (root.last_message != "" ? (". Last message: " + root.last_message) : "");
+
+    focus_scope := FocusScope {
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.selected();
+                return accept;
+            }
+            return reject;
+        }
+
+        touch_area := TouchArea {
+            clicked => {
+                focus_scope.focus();
+                root.selected();
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: AppTheme.space_md;
+        padding-right: AppTheme.space_md;
+        spacing: AppTheme.space_md;
+        alignment: space-between;
+
+        // Avatar placeholder
+        Rectangle {
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            background: AppTheme.primary;
+            y: (parent.height - self.height) / 2;
+
+            Text {
+                text: "💬";
+                color: Colors.white;
+                font-size: AppTheme.font_size_lg;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
+        }
+
+        // Details
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            horizontal-stretch: 1;
+
+            HorizontalLayout {
+                Text {
+                    text: root.chat_title;
+                    color: AppTheme.text_primary;
+                    font-size: AppTheme.font_size_base;
+                    font-weight: 600;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+
+                if (root.time_text != "") : Text {
+                    text: root.time_text;
+                    color: AppTheme.text_secondary;
+                    font-size: AppTheme.font_size_sm;
+                }
+            }
+
+            Text {
+                text: root.last_message != "" ? root.last_message : "No messages yet";
+                color: AppTheme.text_secondary;
+                font-size: AppTheme.font_size_sm;
+                overflow: elide;
+            }
+        }
+
+        // Unread badge
+        if (root.unread_count > 0) : Rectangle {
+            min-width: 20px;
+            height: 20px;
+            border-radius: 10px;
+            background: AppTheme.primary;
+            y: (parent.height - self.height) / 2;
+
+            Text {
+                text: root.unread_count;
+                color: Colors.white;
+                font-size: AppTheme.font_size_sm;
+                font-weight: 700;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
+        }
+    }
+}

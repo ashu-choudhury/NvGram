@@ -1,0 +1,171 @@
+import { AppTheme } from "../styles/theme.slint";
+import { AccessibleButton } from "../components/accessible_button.slint";
+import { AccessibleInput } from "../components/accessible_input.slint";
+
+export component AuthScreen inherits Rectangle {
+    in property <string> auth_stage: "phone"; // "loading", "phone", "code", "password"
+    in property <string> prompt_message: "Please enter your phone number in international format (+1234567890).";
+    in property <string> error_message: "";
+    in property <bool> is_busy: false;
+
+    in-out property <string> phone_input: "";
+    in-out property <string> code_input: "";
+    in-out property <string> password_input: "";
+
+    callback submit_phone(string);
+    callback submit_code(string);
+    callback submit_password(string);
+
+    background: AppTheme.background;
+
+    VerticalLayout {
+        alignment: center;
+        spacing: AppTheme.space_xl;
+        padding: AppTheme.space_xl;
+
+        // Container card
+        Rectangle {
+            max-width: 440px;
+            background: AppTheme.surface;
+            border-radius: AppTheme.radius_lg;
+            border-width: 1px;
+            border-color: AppTheme.border;
+
+            VerticalLayout {
+                padding: AppTheme.space_xl;
+                spacing: AppTheme.space_lg;
+
+                // Title & Subtitle
+                Text {
+                    text: "NvGram Telegram Login";
+                    color: AppTheme.text_primary;
+                    font-size: AppTheme.font_size_2xl;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: root.prompt_message;
+                    color: AppTheme.text_secondary;
+                    font-size: AppTheme.font_size_base;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+
+                // Error alert
+                if (root.error_message != "") : Rectangle {
+                    border-radius: AppTheme.radius_md;
+                    background: #3A1010;
+                    border-width: 1px;
+                    border-color: AppTheme.error;
+
+                    HorizontalLayout {
+                        padding: AppTheme.space_sm;
+                        Text {
+                            text: root.error_message;
+                            color: #FF8A80;
+                            font-size: AppTheme.font_size_sm;
+                            wrap: word-wrap;
+                            accessible-label: "Error: " + root.error_message;
+                        }
+                    }
+                }
+
+                // 1. Phone Input stage
+                if (root.auth_stage == "phone") : VerticalLayout {
+                    spacing: AppTheme.space_md;
+
+                    phone_field := AccessibleInput {
+                        label: "Phone Number";
+                        placeholder: "+1234567890";
+                        text <=> root.phone_input;
+                        accessible_hint: "Enter your phone number with country code";
+                        accepted(val) => {
+                            if (val != "" && !root.is_busy) {
+                                root.submit_phone(val);
+                            }
+                        }
+                    }
+
+                    AccessibleButton {
+                        text: root.is_busy ? "Sending Code..." : "Next";
+                        accessible_hint: "Submit phone number to receive login code";
+                        primary: true;
+                        enabled: root.phone_input != "" && !root.is_busy;
+                        clicked => {
+                            root.submit_phone(root.phone_input);
+                        }
+                    }
+                }
+
+                // 2. Code Input stage
+                if (root.auth_stage == "code") : VerticalLayout {
+                    spacing: AppTheme.space_md;
+
+                    code_field := AccessibleInput {
+                        label: "Telegram Verification Code";
+                        placeholder: "12345";
+                        text <=> root.code_input;
+                        accessible_hint: "Enter the verification code received on Telegram or SMS";
+                        accepted(val) => {
+                            if (val != "" && !root.is_busy) {
+                                root.submit_code(val);
+                            }
+                        }
+                    }
+
+                    AccessibleButton {
+                        text: root.is_busy ? "Verifying..." : "Confirm Code";
+                        accessible_hint: "Submit verification code";
+                        primary: true;
+                        enabled: root.code_input != "" && !root.is_busy;
+                        clicked => {
+                            root.submit_code(root.code_input);
+                        }
+                    }
+                }
+
+                // 3. 2FA Password stage
+                if (root.auth_stage == "password") : VerticalLayout {
+                    spacing: AppTheme.space_md;
+
+                    password_field := AccessibleInput {
+                        label: "Cloud Password (2FA)";
+                        placeholder: "Enter 2-Step Verification Password";
+                        input_type: password;
+                        text <=> root.password_input;
+                        accessible_hint: "Enter your two-step verification cloud password";
+                        accepted(val) => {
+                            if (val != "" && !root.is_busy) {
+                                root.submit_password(val);
+                            }
+                        }
+                    }
+
+                    AccessibleButton {
+                        text: root.is_busy ? "Checking..." : "Sign In";
+                        accessible_hint: "Submit two-step verification password";
+                        primary: true;
+                        enabled: root.password_input != "" && !root.is_busy;
+                        clicked => {
+                            root.submit_password(root.password_input);
+                        }
+                    }
+                }
+
+                // 4. Loading indicator
+                if (root.auth_stage == "loading") : VerticalLayout {
+                    spacing: AppTheme.space_md;
+                    alignment: center;
+
+                    Text {
+                        text: "Initializing secure session...";
+                        color: AppTheme.text_secondary;
+                        font-size: AppTheme.font_size_base;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}
