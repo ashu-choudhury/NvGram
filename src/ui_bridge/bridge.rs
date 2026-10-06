@@ -50,7 +50,13 @@ impl UiBridge {
             let _ = tx.try_send(UiAction::SelectChat(chat_id.to_string()));
         });
 
-        // 5. Send message
+        // 5. Search chats
+        let tx = action_tx.clone();
+        window.on_search_chats(move |query| {
+            let _ = tx.try_send(UiAction::SearchChats(query.to_string()));
+        });
+
+        // 6. Send message
         let tx = action_tx.clone();
         window.on_send_message(move |chat_id, text| {
             let _ = tx.try_send(UiAction::SendMessage {

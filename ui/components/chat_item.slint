@@ -6,33 +6,27 @@ export component ChatItem inherits Rectangle {
     in property <string> time_text: "";
     in property <int> unread_count: 0;
     in property <bool> is_selected: false;
+    in property <bool> is_active: false;
 
-    callback selected();
+    callback clicked();
 
     height: 64px;
     border-radius: AppTheme.radius_md;
     background: root.is_selected ? AppTheme.surface_variant :
-                (touch_area.has-hover ? #1E2734 : Colors.transparent);
-    border-width: focus_scope.has-focus ? 2px : 0px;
+                (root.is_active ? #243042 :
+                (touch_area.has-hover ? #1E2734 : Colors.transparent));
+    border-width: root.is_active ? 2px : 0px;
     border-color: AppTheme.focus_ring;
 
     accessible-role: list-item;
-    accessible-label: root.chat_title + (root.unread_count > 0 ? (", " + root.unread_count + " unread messages") : "") + (root.last_message != "" ? (". Last message: " + root.last_message) : "");
+    accessible-label: root.chat_title + 
+                     (root.unread_count > 0 ? (", " + root.unread_count + " unread") : "") + 
+                     (root.last_message != "" ? (". Last message: " + root.last_message) : "") + 
+                     (root.time_text != "" ? (", " + root.time_text) : "");
 
-    focus_scope := FocusScope {
-        key-pressed(event) => {
-            if (event.text == " " || event.text == "\n") {
-                root.selected();
-                return accept;
-            }
-            return reject;
-        }
-
-        touch_area := TouchArea {
-            clicked => {
-                focus_scope.focus();
-                root.selected();
-            }
+    touch_area := TouchArea {
+        clicked => {
+            root.clicked();
         }
     }
 
@@ -42,27 +36,26 @@ export component ChatItem inherits Rectangle {
         spacing: AppTheme.space_md;
         alignment: space-between;
 
-        // Avatar placeholder
+        // Avatar icon circle
         Rectangle {
             width: 44px;
             height: 44px;
             border-radius: 22px;
-            background: AppTheme.primary;
+            background: root.is_selected ? AppTheme.primary : #2C3E50;
             y: (parent.height - self.height) / 2;
 
             Text {
                 text: "💬";
-                color: Colors.white;
                 font-size: AppTheme.font_size_lg;
                 vertical-alignment: center;
                 horizontal-alignment: center;
             }
         }
 
-        // Details
+        // Title and snippet
         VerticalLayout {
             alignment: center;
-            spacing: 2px;
+            spacing: 3px;
             horizontal-stretch: 1;
 
             HorizontalLayout {
@@ -79,32 +72,41 @@ export component ChatItem inherits Rectangle {
                     text: root.time_text;
                     color: AppTheme.text_secondary;
                     font-size: AppTheme.font_size_sm;
+                    vertical-alignment: center;
                 }
             }
 
-            Text {
-                text: root.last_message != "" ? root.last_message : "No messages yet";
-                color: AppTheme.text_secondary;
-                font-size: AppTheme.font_size_sm;
-                overflow: elide;
-            }
-        }
+            HorizontalLayout {
+                Text {
+                    text: root.last_message != "" ? root.last_message : "No messages yet";
+                    color: AppTheme.text_secondary;
+                    font-size: AppTheme.font_size_sm;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
 
-        // Unread badge
-        if (root.unread_count > 0) : Rectangle {
-            min-width: 20px;
-            height: 20px;
-            border-radius: 10px;
-            background: AppTheme.primary;
-            y: (parent.height - self.height) / 2;
+                // Unread counter badge
+                if (root.unread_count > 0) : Rectangle {
+                    min-width: 20px;
+                    height: 20px;
+                    border-radius: 10px;
+                    background: AppTheme.primary;
+                    y: (parent.height - self.height) / 2;
 
-            Text {
-                text: root.unread_count;
-                color: Colors.white;
-                font-size: AppTheme.font_size_sm;
-                font-weight: 700;
-                vertical-alignment: center;
-                horizontal-alignment: center;
+                    HorizontalLayout {
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        alignment: center;
+                        Text {
+                            text: root.unread_count;
+                            color: Colors.white;
+                            font-size: 11px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
             }
         }
     }

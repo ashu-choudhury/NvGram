@@ -34,6 +34,7 @@ export component AppWindow inherits Window {
     callback submit_code(string);
     callback submit_password(string);
     callback chat_selected(string);
+    callback search_chats(string);
     callback send_message(string, string);
     callback logout_clicked();
 
@@ -58,6 +59,7 @@ export component AppWindow inherits Window {
         selected_chat_title: root.selected_chat_title;
 
         chat_selected(id) => { root.chat_selected(id); }
+        search_chats(query) => { root.search_chats(query); }
         send_message(id, text) => { root.send_message(id, text); }
         logout_clicked => { root.logout_clicked(); }
     }

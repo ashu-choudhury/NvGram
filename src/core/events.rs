@@ -31,6 +31,7 @@ pub enum UiAction {
     SubmitCode(String),
     SubmitPassword(String),
     SelectChat(String),
+    SearchChats(String),
     SendMessage { chat_id: String, text: String },
     LogOut,
 }

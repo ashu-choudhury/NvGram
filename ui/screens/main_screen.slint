@@ -30,9 +30,11 @@ export component MainScreen inherits Rectangle {
     in property <[MessageData]> active_messages: [];
     in property <string> selected_chat_id: "";
     in property <string> selected_chat_title: "Select a chat";
+    in-out property <string> search_query: "";
     in-out property <string> draft_message: "";
 
     callback chat_selected(string);
+    callback search_chats(string);
     callback send_message(string, string); // chat_id, text
     callback logout_clicked();
 
@@ -95,9 +97,9 @@ export component MainScreen inherits Rectangle {
 
         // Two-column split layout
         HorizontalLayout {
-            // Left Column: Chat List
+            // Left Column: Chat List & Search
             Rectangle {
-                width: 320px;
+                width: 340px;
                 background: AppTheme.surface;
                 border-width: 1px;
                 border-color: AppTheme.border;
@@ -106,27 +108,117 @@ export component MainScreen inherits Rectangle {
                     padding: AppTheme.space_sm;
                     spacing: AppTheme.space_sm;
 
-                    Text {
-                        text: "Chats (" + root.chats.length + ")";
-                        color: AppTheme.text_secondary;
-                        font-size: AppTheme.font_size_sm;
-                        font-weight: 600;
+                    // 1. Search Box
+                    search_box := AccessibleInput {
+                        placeholder: "Search chats... (type to filter)";
+                        text <=> root.search_query;
+                        accessible_hint: "Search chats and conversations. Type to filter, press Enter to jump to results";
+                        edited(query) => {
+                            root.search_chats(query);
+                        }
+                        accepted(query) => {
+                            chat_list_focus.focus();
+                            if (chat_list_focus.active_index < 0 && root.chats.length > 0) {
+                                chat_list_focus.active_index = 0;
+                                root.chat_selected(root.chats[0].chat_id);
+                            }
+                        }
                     }
 
-                    ScrollView {
-                        accessible-role: list;
-                        accessible-label: "Telegram chats list";
+                    // 2. Chat Count Header
+                    HorizontalLayout {
+                        padding-left: AppTheme.space_xs;
+                        padding-right: AppTheme.space_xs;
+                        alignment: space-between;
 
-                        VerticalLayout {
-                            spacing: 4px;
-                            for chat in root.chats : ChatItem {
-                                chat_title: chat.title;
-                                last_message: chat.last_message;
-                                time_text: chat.time_text;
-                                unread_count: chat.unread_count;
-                                is_selected: chat.chat_id == root.selected_chat_id;
-                                selected => {
-                                    root.chat_selected(chat.chat_id);
+                        Text {
+                            text: root.search_query != "" ? ("Search Results (" + root.chats.length + ")") : ("All Chats (" + root.chats.length + ")");
+                            color: AppTheme.text_secondary;
+                            font-size: AppTheme.font_size_sm;
+                            font-weight: 600;
+                        }
+
+                        if (root.search_query != "") : Text {
+                            text: "Press Esc to clear";
+                            color: AppTheme.text_secondary;
+                            font-size: AppTheme.font_size_sm;
+                        }
+                    }
+
+                    // 3. Accessible Chat List (Single Tab Stop with Up/Down arrow navigation)
+                    chat_list_focus := FocusScope {
+                        property <int> active_index: 0;
+                        enabled: true;
+
+                        accessible-role: list;
+                        accessible-label: "Telegram Chats list. " + (root.chats.length > 0 && self.active_index >= 0 && self.active_index < root.chats.length ? (root.chats[self.active_index].title + ", " + (self.active_index + 1) + " of " + root.chats.length) : "No chats available");
+
+                        key-pressed(event) => {
+                            if (event.text == Key.DownArrow) {
+                                if (self.active_index + 1 < root.chats.length) {
+                                    self.active_index += 1;
+                                    root.chat_selected(root.chats[self.active_index].chat_id);
+                                }
+                                return accept;
+                            }
+                            if (event.text == Key.UpArrow) {
+                                if (self.active_index > 0) {
+                                    self.active_index -= 1;
+                                    root.chat_selected(root.chats[self.active_index].chat_id);
+                                }
+                                return accept;
+                            }
+                            if (event.text == Key.Home) {
+                                if (root.chats.length > 0) {
+                                    self.active_index = 0;
+                                    root.chat_selected(root.chats[0].chat_id);
+                                }
+                                return accept;
+                            }
+                            if (event.text == Key.End) {
+                                if (root.chats.length > 0) {
+                                    self.active_index = root.chats.length - 1;
+                                    root.chat_selected(root.chats[self.active_index].chat_id);
+                                }
+                                return accept;
+                            }
+                            if (event.text == Key.Return || event.text == " ") {
+                                if (self.active_index >= 0 && self.active_index < root.chats.length) {
+                                    root.chat_selected(root.chats[self.active_index].chat_id);
+                                }
+                                return accept;
+                            }
+                            return reject;
+                        }
+
+                        ScrollView {
+                            VerticalLayout {
+                                spacing: 2px;
+                                padding: 2px;
+
+                                if (root.chats.length == 0) : VerticalLayout {
+                                    alignment: center;
+                                    padding: AppTheme.space_xl;
+                                    Text {
+                                        text: root.search_query != "" ? "No chats match your search query." : "Loading your conversations...";
+                                        color: AppTheme.text_secondary;
+                                        font-size: AppTheme.font_size_sm;
+                                        horizontal-alignment: center;
+                                    }
+                                }
+
+                                for chat[idx] in root.chats : ChatItem {
+                                    chat_title: chat.title;
+                                    last_message: chat.last_message;
+                                    time_text: chat.time_text;
+                                    unread_count: chat.unread_count;
+                                    is_selected: chat.chat_id == root.selected_chat_id;
+                                    is_active: chat_list_focus.has-focus && (idx == chat_list_focus.active_index);
+                                    clicked => {
+                                        chat_list_focus.focus();
+                                        chat_list_focus.active_index = idx;
+                                        root.chat_selected(chat.chat_id);
+                                    }
                                 }
                             }
                         }

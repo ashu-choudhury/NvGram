@@ -19,6 +19,7 @@ pub struct TelegramService {
     ui_tx: mpsc::Sender<AppUpdate>,
     action_rx: Arc<Mutex<mpsc::Receiver<UiAction>>>,
     chats: Arc<Mutex<HashMap<i64, tdlib_rs::types::Chat>>>,
+    search_query: Arc<Mutex<String>>,
 }
 
 impl TelegramService {
@@ -34,6 +35,7 @@ impl TelegramService {
             ui_tx,
             action_rx: Arc::new(Mutex::new(action_rx)),
             chats: Arc::new(Mutex::new(HashMap::new())),
+            search_query: Arc::new(Mutex::new(String::new())),
         }
     }
 
@@ -43,6 +45,7 @@ impl TelegramService {
         let ui_tx = self.ui_tx.clone();
         let chats = self.chats.clone();
         let action_rx = self.action_rx.clone();
+        let search_query = self.search_query.clone();
 
         // 1. TDLib Receiver Task (reads updates from tdlib)
         let (update_tx, mut update_rx) = mpsc::unbounded_channel::<Update>();
@@ -77,6 +80,7 @@ impl TelegramService {
                             &config,
                             &ui_tx,
                             &chats,
+                            &search_query,
                             update,
                             active_chat_id,
                         ).await;
@@ -91,6 +95,7 @@ impl TelegramService {
                                 client_id,
                                 &ui_tx,
                                 &chats,
+                                &search_query,
                                 &mut active_chat_id,
                                 act,
                             ).await;
@@ -108,6 +113,7 @@ impl TelegramService {
         config: &AppConfig,
         ui_tx: &mpsc::Sender<AppUpdate>,
         chats: &Arc<Mutex<HashMap<i64, tdlib_rs::types::Chat>>>,
+        search_query: &Arc<Mutex<String>>,
         update: Update,
         active_chat_id: Option<i64>,
     ) {
@@ -134,7 +140,7 @@ impl TelegramService {
                 let mut map = chats.lock().await;
                 map.insert(new_chat.chat.id, new_chat.chat);
                 drop(map);
-                Self::publish_chat_list(chats, ui_tx).await;
+                Self::publish_chat_list(chats, ui_tx, search_query).await;
             }
             Update::ChatTitle(title_upd) => {
                 let mut map = chats.lock().await;
@@ -142,15 +148,35 @@ impl TelegramService {
                     chat.title = title_upd.title;
                 }
                 drop(map);
-                Self::publish_chat_list(chats, ui_tx).await;
+                Self::publish_chat_list(chats, ui_tx, search_query).await;
             }
             Update::ChatLastMessage(last_msg) => {
                 let mut map = chats.lock().await;
                 if let Some(chat) = map.get_mut(&last_msg.chat_id) {
                     chat.last_message = last_msg.last_message;
+                    chat.positions = last_msg.positions;
                 }
                 drop(map);
-                Self::publish_chat_list(chats, ui_tx).await;
+                Self::publish_chat_list(chats, ui_tx, search_query).await;
+            }
+            Update::ChatPosition(pos_upd) => {
+                let mut map = chats.lock().await;
+                if let Some(chat) = map.get_mut(&pos_upd.chat_id) {
+                    chat.positions.retain(|p| p.list != pos_upd.position.list);
+                    if pos_upd.position.order > 0 {
+                        chat.positions.push(pos_upd.position);
+                    }
+                }
+                drop(map);
+                Self::publish_chat_list(chats, ui_tx, search_query).await;
+            }
+            Update::ChatReadInbox(read) => {
+                let mut map = chats.lock().await;
+                if let Some(chat) = map.get_mut(&read.chat_id) {
+                    chat.unread_count = read.unread_count;
+                }
+                drop(map);
+                Self::publish_chat_list(chats, ui_tx, search_query).await;
             }
             Update::NewMessage(new_msg) => {
                 // If this belongs to active chat, refresh message view
@@ -263,8 +289,8 @@ impl TelegramService {
                     })
                     .await;
 
-                // Load initial chats
-                let _ = functions::load_chats(None, 50, client_id).await;
+                // Load initial chats (up to 100)
+                let _ = functions::load_chats(None, 100, client_id).await;
 
                 // Fetch current user details
                 if let Ok(tdlib_rs::enums::User::User(user)) = functions::get_me(client_id).await {
@@ -290,6 +316,7 @@ impl TelegramService {
         client_id: i32,
         ui_tx: &mpsc::Sender<AppUpdate>,
         chats: &Arc<Mutex<HashMap<i64, tdlib_rs::types::Chat>>>,
+        search_query: &Arc<Mutex<String>>,
         active_chat_id: &mut Option<i64>,
         action: UiAction,
     ) {
@@ -345,6 +372,30 @@ impl TelegramService {
                     Self::fetch_and_publish_chat_history(client_id, id, chats, ui_tx).await;
                 }
             }
+            UiAction::SearchChats(query) => {
+                {
+                    let mut q = search_query.lock().await;
+                    *q = query.clone();
+                }
+                Self::publish_chat_list(chats, ui_tx, search_query).await;
+
+                let trimmed = query.trim().to_string();
+                if !trimmed.is_empty() {
+                    if let Ok(tdlib_rs::enums::Chats::Chats(found)) =
+                        functions::search_chats(trimmed, 20, client_id).await
+                    {
+                        for chat_id in found.chat_ids {
+                            if let Ok(tdlib_rs::enums::Chat::Chat(c)) =
+                                functions::get_chat(chat_id, client_id).await
+                            {
+                                let mut map = chats.lock().await;
+                                map.insert(c.id, c);
+                            }
+                        }
+                        Self::publish_chat_list(chats, ui_tx, search_query).await;
+                    }
+                }
+            }
             UiAction::SendMessage { chat_id, text } => {
                 if let Ok(id) = chat_id.parse::<i64>() {
                     let content = InputMessageContent::InputMessageText(InputMessageText {
@@ -372,9 +423,15 @@ impl TelegramService {
     async fn publish_chat_list(
         chats: &Arc<Mutex<HashMap<i64, tdlib_rs::types::Chat>>>,
         ui_tx: &mpsc::Sender<AppUpdate>,
+        search_query: &Arc<Mutex<String>>,
     ) {
+        let current_query = {
+            let q = search_query.lock().await;
+            q.to_lowercase().trim().to_string()
+        };
+
         let map = chats.lock().await;
-        let mut list: Vec<ChatViewModel> = map
+        let mut list: Vec<(i64, ChatViewModel)> = map
             .values()
             .map(|c| {
                 let snippet = c
@@ -383,20 +440,61 @@ impl TelegramService {
                     .map(|m| Self::format_content(&m.content))
                     .unwrap_or_default();
 
-                ChatViewModel {
-                    chat_id: c.id.to_string(),
-                    title: if c.title.is_empty() { "Saved Messages".to_string() } else { c.title.clone() },
-                    last_message: snippet,
-                    time_text: "".to_string(),
-                    unread_count: c.unread_count,
+                let (time_text, date) = match &c.last_message {
+                    Some(m) => (Self::format_timestamp(m.date), m.date as i64),
+                    None => (String::new(), 0),
+                };
+
+                // Pinned order or latest message timestamp
+                let order = c
+                    .positions
+                    .iter()
+                    .map(|p| p.order)
+                    .max()
+                    .unwrap_or(0);
+                let sort_key = if order > 0 { order } else { date };
+
+                (
+                    sort_key,
+                    ChatViewModel {
+                        chat_id: c.id.to_string(),
+                        title: if c.title.is_empty() { "Saved Messages".to_string() } else { c.title.clone() },
+                        last_message: snippet,
+                        time_text,
+                        unread_count: c.unread_count,
+                    },
+                )
+            })
+            .collect();
+
+        // Sort descending: most active / recent chats and pinned chats at the top!
+        list.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // Filter by search query if user typed into the search bar
+        let view_models: Vec<ChatViewModel> = list
+            .into_iter()
+            .map(|(_, vm)| vm)
+            .filter(|c| {
+                if current_query.is_empty() {
+                    true
+                } else {
+                    c.title.to_lowercase().contains(&current_query)
+                        || c.last_message.to_lowercase().contains(&current_query)
                 }
             })
             .collect();
 
-        // Sort alphabetically or by title
-        list.sort_by(|a, b| a.title.cmp(&b.title));
+        let _ = ui_tx.send(AppUpdate::ChatListUpdated(view_models)).await;
+    }
 
-        let _ = ui_tx.send(AppUpdate::ChatListUpdated(list)).await;
+    fn format_timestamp(ts: i32) -> String {
+        if ts <= 0 {
+            return String::new();
+        }
+        let total_minutes = ts / 60;
+        let minute = total_minutes % 60;
+        let hour = (total_minutes / 60) % 24;
+        format!("{:02}:{:02}", hour, minute)
     }
 
     async fn fetch_and_publish_chat_history(
