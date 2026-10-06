@@ -60,6 +60,9 @@ impl TelegramService {
         tokio::spawn(async move {
             let mut active_chat_id: Option<i64> = None;
 
+            // Ping TDLib with an initial query so it begins dispatching updates to this client
+            let _ = functions::get_option("version".to_string(), client_id).await;
+
             loop {
                 tokio::select! {
                     Some(update) = update_rx.recv() => {
