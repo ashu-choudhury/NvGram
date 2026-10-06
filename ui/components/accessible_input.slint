@@ -13,6 +13,8 @@ export component AccessibleInput inherits VerticalLayout {
     callback edited(string);
     callback accepted(string);
 
+    forward-focus: input;
+
     spacing: AppTheme.space_xs;
 
     if (root.label != "") : Text {
@@ -27,7 +29,7 @@ export component AccessibleInput inherits VerticalLayout {
         font-size: AppTheme.font_size_base;
         accessible-role: text-input;
         accessible-label: root.label;
-        accessible-description: root.accessible_hint != "" ? root.accessible_hint : root.label;
+        accessible-description: (root.error_text != "" ? ("Error: " + root.error_text + ". ") : "") + (root.accessible_hint != "" ? root.accessible_hint : root.label);
         accessible-value: root.text;
 
         edited(text) => {

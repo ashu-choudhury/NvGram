@@ -1,4 +1,4 @@
-use slint::{ModelRc, VecModel};
+use slint::{ComponentHandle, ModelRc, VecModel};
 use tokio::sync::mpsc;
 
 use crate::core::events::{AppUpdate, AuthStage, UiAction};
@@ -13,19 +13,34 @@ impl UiBridge {
     ) {
         // 1. Phone submission
         let tx = action_tx.clone();
+        let win_weak = window.as_weak();
         window.on_submit_phone(move |phone| {
+            if let Some(win) = win_weak.upgrade() {
+                win.set_auth_busy(true);
+                win.set_auth_error("".into());
+            }
             let _ = tx.try_send(UiAction::SubmitPhone(phone.to_string()));
         });
 
         // 2. Code submission
         let tx = action_tx.clone();
+        let win_weak = window.as_weak();
         window.on_submit_code(move |code| {
+            if let Some(win) = win_weak.upgrade() {
+                win.set_auth_busy(true);
+                win.set_auth_error("".into());
+            }
             let _ = tx.try_send(UiAction::SubmitCode(code.to_string()));
         });
 
         // 3. Password submission
         let tx = action_tx.clone();
+        let win_weak = window.as_weak();
         window.on_submit_password(move |password| {
+            if let Some(win) = win_weak.upgrade() {
+                win.set_auth_busy(true);
+                win.set_auth_error("".into());
+            }
             let _ = tx.try_send(UiAction::SubmitPassword(password.to_string()));
         });
 

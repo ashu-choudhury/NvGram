@@ -3,10 +3,10 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
 use tdlib_rs::enums::{
-    AuthorizationState, ConnectionState, InputMessageContent, MessageContent, OptionValue, Update,
+    AuthorizationState, ConnectionState, InputMessageContent, MessageContent, Update,
 };
 use tdlib_rs::functions;
-use tdlib_rs::types::{FormattedText, InputMessageText, OptionValueBoolean};
+use tdlib_rs::types::{FormattedText, InputMessageText};
 
 use crate::config::AppConfig;
 use crate::core::events::{
@@ -60,15 +60,11 @@ impl TelegramService {
         tokio::spawn(async move {
             let mut active_chat_id: Option<i64> = None;
 
+            println!("[NvGram] Initializing TDLib client {}...", client_id);
+
             // Ping TDLib with an initial query so it begins dispatching updates to this client
             let _ = functions::get_option("version".to_string(), client_id).await;
-
-            // Prefer IPv6 connection if available
-            let _ = functions::set_option(
-                "prefer_ipv6".to_string(),
-                Some(OptionValue::Boolean(OptionValueBoolean { value: true })),
-                client_id,
-            ).await;
+            println!("[NvGram] TDLib client active. Entering event loop.");
 
             loop {
                 tokio::select! {
@@ -175,6 +171,7 @@ impl TelegramService {
     ) {
         match auth_state {
             AuthorizationState::WaitTdlibParameters => {
+                println!("[NvGram] AuthorizationState::WaitTdlibParameters: configuring TDLib...");
                 let _ = ui_tx
                     .send(AppUpdate::AuthStateChanged {
                         stage: AuthStage::Loading,
@@ -185,6 +182,8 @@ impl TelegramService {
 
                 let db_path = config.database_directory.to_string_lossy().to_string();
                 let files_path = config.files_directory.to_string_lossy().to_string();
+
+                println!("[NvGram] Setting TDLib parameters: api_id={}, db={}", config.api_id, db_path);
 
                 let res = functions::set_tdlib_parameters(
                     config.use_test_dc,
@@ -206,15 +205,19 @@ impl TelegramService {
                 .await;
 
                 if let Err(err) = res {
+                    eprintln!("[NvGram] TDLib initialization error: {}", err.message);
                     let _ = ui_tx
                         .send(AppUpdate::ShowError(format!(
                             "TDLib initialization failed: {}",
                             err.message
                         )))
                         .await;
+                } else {
+                    println!("[NvGram] TDLib parameters accepted successfully.");
                 }
             }
             AuthorizationState::WaitPhoneNumber => {
+                println!("[NvGram] AuthorizationState::WaitPhoneNumber: Waiting for phone number...");
                 let _ = ui_tx
                     .send(AppUpdate::AuthStateChanged {
                         stage: AuthStage::WaitPhoneNumber,
@@ -224,6 +227,7 @@ impl TelegramService {
                     .await;
             }
             AuthorizationState::WaitCode(_) => {
+                println!("[NvGram] AuthorizationState::WaitCode: Enter verification code.");
                 let _ = ui_tx
                     .send(AppUpdate::AuthStateChanged {
                         stage: AuthStage::WaitCode,
@@ -233,6 +237,7 @@ impl TelegramService {
                     .await;
             }
             AuthorizationState::WaitPassword(_) => {
+                println!("[NvGram] AuthorizationState::WaitPassword: Enter cloud password.");
                 let _ = ui_tx
                     .send(AppUpdate::AuthStateChanged {
                         stage: AuthStage::WaitPassword,
@@ -242,6 +247,7 @@ impl TelegramService {
                     .await;
             }
             AuthorizationState::Ready => {
+                println!("[NvGram] AuthorizationState::Ready: Authorized!");
                 let _ = ui_tx
                     .send(AppUpdate::AuthStateChanged {
                         stage: AuthStage::Ready,
@@ -260,6 +266,7 @@ impl TelegramService {
                 }
             }
             AuthorizationState::Closed => {
+                println!("[NvGram] AuthorizationState::Closed: Session closed.");
                 let _ = ui_tx
                     .send(AppUpdate::AuthStateChanged {
                         stage: AuthStage::WaitPhoneNumber,
@@ -281,7 +288,9 @@ impl TelegramService {
     ) {
         match action {
             UiAction::SubmitPhone(phone) => {
+                println!("[NvGram] Submitting phone number: {}", phone);
                 if let Err(err) = functions::set_authentication_phone_number(phone, None, client_id).await {
+                    eprintln!("[NvGram] Phone number error: {}", err.message);
                     let _ = ui_tx
                         .send(AppUpdate::AuthStateChanged {
                             stage: AuthStage::WaitPhoneNumber,
@@ -289,10 +298,14 @@ impl TelegramService {
                             error: Some(err.message),
                         })
                         .await;
+                } else {
+                    println!("[NvGram] Phone number submitted successfully. Awaiting code...");
                 }
             }
             UiAction::SubmitCode(code) => {
+                println!("[NvGram] Submitting verification code: {}", code);
                 if let Err(err) = functions::check_authentication_code(code, client_id).await {
+                    eprintln!("[NvGram] Verification code error: {}", err.message);
                     let _ = ui_tx
                         .send(AppUpdate::AuthStateChanged {
                             stage: AuthStage::WaitCode,
@@ -300,10 +313,14 @@ impl TelegramService {
                             error: Some(err.message),
                         })
                         .await;
+                } else {
+                    println!("[NvGram] Verification code accepted!");
                 }
             }
             UiAction::SubmitPassword(pass) => {
+                println!("[NvGram] Submitting cloud password...");
                 if let Err(err) = functions::check_authentication_password(pass, client_id).await {
+                    eprintln!("[NvGram] Cloud password error: {}", err.message);
                     let _ = ui_tx
                         .send(AppUpdate::AuthStateChanged {
                             stage: AuthStage::WaitPassword,
@@ -311,6 +328,8 @@ impl TelegramService {
                             error: Some(err.message),
                         })
                         .await;
+                } else {
+                    println!("[NvGram] Cloud password accepted!");
                 }
             }
             UiAction::SelectChat(chat_id_str) => {

@@ -27,14 +27,16 @@ impl AppConfig {
         fs::create_dir_all(&db_dir)?;
         fs::create_dir_all(&files_dir)?;
 
-        // Default or environment-provided Telegram credentials
+use super::credentials::{TELEGRAM_API_HASH, TELEGRAM_API_ID};
+
+        // Load credentials from credentials.rs (or environment overrides if set)
         let api_id = std::env::var("TELEGRAM_API_ID")
             .ok()
             .and_then(|id| id.parse::<i32>().ok())
-            .unwrap_or(2839); // Official Telegram desktop test / sample ID
+            .unwrap_or(TELEGRAM_API_ID);
 
         let api_hash = std::env::var("TELEGRAM_API_HASH")
-            .unwrap_or_else(|_| "40a5a36323c4f52e240fa12285e61388".to_string());
+            .unwrap_or_else(|_| TELEGRAM_API_HASH.to_string());
 
         let use_test_dc = std::env::var("TELEGRAM_USE_TEST_DC")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))

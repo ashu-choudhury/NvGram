@@ -79,7 +79,8 @@ export component AuthScreen inherits Rectangle {
                         label: "Phone Number";
                         placeholder: "+1234567890";
                         text <=> root.phone_input;
-                        accessible_hint: "Enter your phone number with country code";
+                        error_text: root.error_message;
+                        accessible_hint: (root.prompt_message != "" ? (root.prompt_message + " ") : "") + "Format: +[country code][number], for example +1234567890";
                         accepted(val) => {
                             if (val != "" && !root.is_busy) {
                                 root.submit_phone(val);
@@ -89,7 +90,7 @@ export component AuthScreen inherits Rectangle {
 
                     AccessibleButton {
                         text: root.is_busy ? "Sending Code..." : "Next";
-                        accessible_hint: "Submit phone number to receive login code";
+                        accessible_hint: root.is_busy ? "Please wait, contacting Telegram servers..." : "Submit phone number to receive login code";
                         primary: true;
                         enabled: root.phone_input != "" && !root.is_busy;
                         clicked => {
@@ -106,7 +107,8 @@ export component AuthScreen inherits Rectangle {
                         label: "Telegram Verification Code";
                         placeholder: "12345";
                         text <=> root.code_input;
-                        accessible_hint: "Enter the verification code received on Telegram or SMS";
+                        error_text: root.error_message;
+                        accessible_hint: root.prompt_message != "" ? root.prompt_message : "Enter the verification code received on Telegram or SMS";
                         accepted(val) => {
                             if (val != "" && !root.is_busy) {
                                 root.submit_code(val);
@@ -116,7 +118,7 @@ export component AuthScreen inherits Rectangle {
 
                     AccessibleButton {
                         text: root.is_busy ? "Verifying..." : "Confirm Code";
-                        accessible_hint: "Submit verification code";
+                        accessible_hint: root.is_busy ? "Please wait, verifying code with Telegram..." : "Submit verification code";
                         primary: true;
                         enabled: root.code_input != "" && !root.is_busy;
                         clicked => {
@@ -134,7 +136,8 @@ export component AuthScreen inherits Rectangle {
                         placeholder: "Enter 2-Step Verification Password";
                         input_type: password;
                         text <=> root.password_input;
-                        accessible_hint: "Enter your two-step verification cloud password";
+                        error_text: root.error_message;
+                        accessible_hint: root.prompt_message != "" ? root.prompt_message : "Enter your two-step verification cloud password";
                         accepted(val) => {
                             if (val != "" && !root.is_busy) {
                                 root.submit_password(val);
@@ -144,7 +147,7 @@ export component AuthScreen inherits Rectangle {
 
                     AccessibleButton {
                         text: root.is_busy ? "Checking..." : "Sign In";
-                        accessible_hint: "Submit two-step verification password";
+                        accessible_hint: root.is_busy ? "Please wait, verifying cloud password..." : "Submit two-step verification password";
                         primary: true;
                         enabled: root.password_input != "" && !root.is_busy;
                         clicked => {
