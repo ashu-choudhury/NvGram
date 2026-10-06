@@ -1,0 +1,42 @@
+import { Button, VerticalBox, HorizontalBox, LineEdit, ListView } from "std-widgets.slint";
+
+export component AppWindow inherits Window {
+    title: "NvGram - Telegram Desktop";
+    min-width: 600px;
+    min-height: 400px;
+    default-font-size: 14px;
+
+    in-out property <string> status_text: "Welcome to NvGram! Connecting...";
+    callback connect_clicked();
+
+    VerticalBox {
+        padding: 16px;
+        spacing: 12px;
+
+        Text {
+            text: "NvGram";
+            font-size: 20px;
+            font-weight: 700;
+            accessible-role: text;
+        }
+
+        Text {
+            text: root.status_text;
+            accessible-role: text;
+            wrap: word-wrap;
+        }
+
+        HorizontalBox {
+            spacing: 8px;
+
+            Button {
+                text: "Connect / Login";
+                accessible-role: button;
+                accessible-description: "Initiate login with Telegram";
+                clicked => {
+                    root.connect_clicked();
+                }
+            }
+        }
+    }
+}

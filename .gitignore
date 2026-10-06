@@ -1,0 +1,4 @@
+/target
+*.tdlib
+tdlib_data/
+*.log
