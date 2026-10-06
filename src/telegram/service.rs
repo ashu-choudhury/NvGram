@@ -45,12 +45,12 @@ impl TelegramService {
         let action_rx = self.action_rx.clone();
 
         // 1. TDLib Receiver Task (reads updates from tdlib)
-        let (update_tx, mut update_rx) = mpsc::channel::<Update>(100);
+        let (update_tx, mut update_rx) = mpsc::unbounded_channel::<Update>();
         std::thread::spawn(move || {
             loop {
                 if let Some((update, rec_client_id)) = tdlib_rs::receive() {
                     if rec_client_id == client_id {
-                        let _ = update_tx.blocking_send(update);
+                        let _ = update_tx.send(update);
                     }
                 }
             }
@@ -61,6 +61,9 @@ impl TelegramService {
             let mut active_chat_id: Option<i64> = None;
 
             println!("[NvGram] Initializing TDLib client {}...", client_id);
+
+            // Set TDLib log verbosity to 1 (Fatal & Critical errors only) to silence verbose C++ logs
+            let _ = functions::set_log_verbosity_level(1, client_id).await;
 
             // Ping TDLib with an initial query so it begins dispatching updates to this client
             let _ = functions::get_option("version".to_string(), client_id).await;
@@ -185,36 +188,40 @@ impl TelegramService {
 
                 println!("[NvGram] Setting TDLib parameters: api_id={}, db={}", config.api_id, db_path);
 
-                let res = functions::set_tdlib_parameters(
-                    config.use_test_dc,
-                    db_path,
-                    files_path,
-                    "".to_string(), // database_encryption_key
-                    true,           // use_file_database
-                    true,           // use_chat_info_database
-                    true,           // use_message_database
-                    true,           // use_secret_chats
-                    config.api_id,
-                    config.api_hash.clone(),
-                    config.system_language_code.clone(),
-                    config.device_model.clone(),
-                    config.system_version.clone(),
-                    config.application_version.clone(),
-                    client_id,
-                )
-                .await;
+                let cfg = config.clone();
+                let ui = ui_tx.clone();
+                tokio::spawn(async move {
+                    let res = functions::set_tdlib_parameters(
+                        cfg.use_test_dc,
+                        db_path,
+                        files_path,
+                        "".to_string(), // database_encryption_key
+                        true,           // use_file_database
+                        true,           // use_chat_info_database
+                        true,           // use_message_database
+                        true,           // use_secret_chats
+                        cfg.api_id,
+                        cfg.api_hash.clone(),
+                        cfg.system_language_code.clone(),
+                        cfg.device_model.clone(),
+                        cfg.system_version.clone(),
+                        cfg.application_version.clone(),
+                        client_id,
+                    )
+                    .await;
 
-                if let Err(err) = res {
-                    eprintln!("[NvGram] TDLib initialization error: {}", err.message);
-                    let _ = ui_tx
-                        .send(AppUpdate::ShowError(format!(
-                            "TDLib initialization failed: {}",
-                            err.message
-                        )))
-                        .await;
-                } else {
-                    println!("[NvGram] TDLib parameters accepted successfully.");
-                }
+                    if let Err(err) = res {
+                        eprintln!("[NvGram] TDLib initialization error: {}", err.message);
+                        let _ = ui
+                            .send(AppUpdate::ShowError(format!(
+                                "TDLib initialization failed: {}",
+                                err.message
+                            )))
+                            .await;
+                    } else {
+                        println!("[NvGram] TDLib parameters accepted successfully.");
+                    }
+                });
             }
             AuthorizationState::WaitPhoneNumber => {
                 println!("[NvGram] AuthorizationState::WaitPhoneNumber: Waiting for phone number...");
